@@ -8,8 +8,13 @@ echo "Setting up microservices and AI platform..."
 command -v docker  >/dev/null || { echo "Docker not found"; exit 1; }
 command -v python3 >/dev/null || { echo "Python not found"; exit 1; }
 
-# Create .env if missing
-[ ! -f .env ] && cp .env.example .env && echo "Created .env from template"
+# Create .env if missing OR if it exists but is empty (0 bytes)
+# The old `[ ! -f .env ]` check fails silently when .env exists but is empty,
+# which causes postgres to start with blank credentials and fail to initialize.
+if [ ! -f .env ] || [ ! -s .env ]; then
+    cp .env.example .env
+    echo "Created .env from template"
+fi
 echo "Reminder: Edit .env with real passwords before production!"
 
 # Start infrastructure first
@@ -58,6 +63,8 @@ echo "Platform ready!"
 echo ""
 echo "   API Gateway:  http://localhost:8000"
 echo "   AI Service:   http://localhost:5003/docs   (Swagger UI)"
-echo "   Ollama API:   http://localhost:11434"
 echo "   User Svc:     http://localhost:5001"
 echo "   Order Svc:    http://localhost:5002"
+echo ""
+echo "   NOTE: Ollama is not exposed to the host (security). It is"
+echo "   reachable internally by ai-service at http://ollama:11434."
