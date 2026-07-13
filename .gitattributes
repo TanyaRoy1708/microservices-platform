@@ -1,0 +1,21 @@
+# Normalize line endings: store as LF in the repo, checkout as native on each OS
+* text=auto
+
+# Force shell scripts to always use LF (required for bash execution on Linux/Mac)
+*.sh text eol=lf
+
+# Dockerfiles and YAML — LF only
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Python — LF only
+*.py text eol=lf
+
+# Markdown and text — auto
+*.md text
+*.txt text
+*.example text
+
+# SQL — LF only
+*.sql text eol=lf
