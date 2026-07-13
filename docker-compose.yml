@@ -28,11 +28,12 @@ services:
 
   # AI Runtime - Ollama local LLM
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.3.14
     volumes:
       - ollama_models:/root/.ollama   # persist downloaded models
-    ports:
-      - "11434:11434"
+    # Port intentionally NOT exposed to host — ai-service reaches Ollama
+    # via internal Docker DNS (http://ollama:11434). Exposing 11434 to the
+    # host would allow unauthenticated LLM access to any process on the machine.
     networks: [backend, ai]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
@@ -43,7 +44,7 @@ services:
 
   # Pull the model on first start (runs once, then exits)
   ollama-model-pull:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.3.14
     command: pull ${OLLAMA_MODEL:-llama3.2:1b}
     environment:
       OLLAMA_HOST: http://ollama:11434
@@ -66,8 +67,10 @@ services:
         condition: service_healthy
     networks: [backend]
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5001/health\")'"]
+      test: ["CMD", "curl", "-f", "--silent", "--max-time", "5", "http://localhost:5001/health"]
       interval: 15s
+      timeout: 6s
+      retries: 3
 
   order-service:
     build: ./order-service
@@ -78,8 +81,10 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
     depends_on:
-      - user-service
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks: [backend]
 
   # AI Service
@@ -108,9 +113,12 @@ services:
       ORDER_SERVICE_URL: http://order-service:5002
       AI_SERVICE_URL: http://ai-service:5003
     depends_on:
-      - user-service
-      - order-service
-      - ai-service
+      user-service:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+      ai-service:
+        condition: service_started
     networks: [backend, frontend]
 
 networks:
