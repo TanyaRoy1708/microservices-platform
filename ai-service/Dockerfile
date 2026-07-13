@@ -1,6 +1,9 @@
 FROM python:3.11-slim
 
-RUN useradd -m -u 1000 appuser
+# Security: run as non-root + install curl for healthchecks in a single layer
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 appuser
 WORKDIR /app
 
 COPY requirements.txt .
