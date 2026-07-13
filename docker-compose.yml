@@ -1,0 +1,123 @@
+version: '3.9'
+
+services:
+  # Infrastructure
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+    networks: [backend]
+
+  # AI Runtime - Ollama local LLM
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama   # persist downloaded models
+    ports:
+      - "11434:11434"
+    networks: [backend, ai]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s   # Ollama takes time to start
+
+  # Pull the model on first start (runs once, then exits)
+  ollama-model-pull:
+    image: ollama/ollama:latest
+    command: pull ${OLLAMA_MODEL:-llama3.2:1b}
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks: [backend, ai]
+    restart: "no"
+
+  # Application Services
+  user-service:
+    build: ./user-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 15s
+
+  order-service:
+    build: ./order-service
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      - user-service
+      - redis
+    networks: [backend]
+
+  # AI Service
+  ai-service:
+    build: ./ai-service
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      USER_SERVICE_URL: http://user-service:5001
+      ORDER_SERVICE_URL: http://order-service:5002
+    depends_on:
+      ollama:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    ports:
+      - "5003:5003"
+    networks: [backend, ai]
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      USER_SERVICE_URL: http://user-service:5001
+      ORDER_SERVICE_URL: http://order-service:5002
+      AI_SERVICE_URL: http://ai-service:5003
+    depends_on:
+      - user-service
+      - order-service
+      - ai-service
+    networks: [backend, frontend]
+
+networks:
+  backend:
+  frontend:
+  ai:    # Isolated network for AI services
+
+volumes:
+  postgres_data:
+  ollama_models:   # Persists model weights across container restarts
