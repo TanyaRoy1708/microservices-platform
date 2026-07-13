@@ -16,7 +16,7 @@ class QueryRequest(BaseModel):
 SYSTEM_PROMPT = """You are a helpful assistant for a microservices platform.
 You receive a natural language query and structured data from user and order services.
 Your job is to extract relevant information and respond concisely.
-Always respond in JSON format: {"answer": "...", "relevant_records": [...]}"""
+Always respond in JSON format: {"answer": "...", "relevant_records": [..]}"""
 
 @app.get("/health")
 async def health():
