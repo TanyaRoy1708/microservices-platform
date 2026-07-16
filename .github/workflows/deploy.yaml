@@ -1,4 +1,4 @@
-name: CI/CD — Build, Scan, Deploy
+﻿name: CI/CD - Build, Scan, Deploy
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies and run tests
         run: |
           pip install -r ${{ matrix.service }}/requirements.txt pytest httpx
-          pytest tests/ -v --tb=short || echo "No tests yet — skipping"
+          pytest tests/ -v --tb=short || echo "No tests yet - skipping"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4

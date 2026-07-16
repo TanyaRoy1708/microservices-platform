@@ -1,4 +1,4 @@
-global :
+﻿global :
   imageTag: "latest"
   ecrRegistry: ""
 
@@ -39,7 +39,7 @@ aiService:
   replicaCount: 2
   port: 5003
   model: "llama3.2:1b"
-  ollamaUrl: ""   # set via configmap — Ollama runs on EC2 sidecar
+  ollamaUrl: ""   # set via configmap - Ollama runs on EC2 sidecar
   resources:
     requests:
       memory: "256Mi"

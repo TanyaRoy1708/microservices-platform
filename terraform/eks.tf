@@ -1,4 +1,4 @@
-module "eks" {
+﻿module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
@@ -23,7 +23,7 @@ module "eks" {
     }
   }
 
-  # Enable IRSA — pods get AWS permissions via IAM roles, no static keys
+  # Enable IRSA - pods get AWS permissions via IAM roles, no static keys
   # When IRSA is enabled EKS creates an OIDC Identity Provider.
   # Every Pod gets a signed identity token.
   # AWS verifies this token. If it trusts the token it issued temporary creds.
