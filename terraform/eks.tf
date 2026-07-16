@@ -10,6 +10,9 @@ module "eks" {
   # Allow kubectl from your machine
   cluster_endpoint_public_access = true
 
+  # Grants the IAM role running Terraform admin access to the cluster
+  enable_cluster_creator_admin_permissions = true
+
   eks_managed_node_groups = {
     spot_workers = {                         #spot_workers is node group name
       min_size       = 1
