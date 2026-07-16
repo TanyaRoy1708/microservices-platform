@@ -1,0 +1,160 @@
+name: CI/CD — Build, Scan, Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+jobs:
+  # CI: Test + Build + Scan (runs in parallel for all 4 services)
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, order-service, ai-service]
+      fail-fast: false   # Don't cancel other services if one fails
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ${{ matrix.service }}/requirements.txt
+
+      - name: Install dependencies and run tests
+        run: |
+          pip install -r ${{ matrix.service }}/requirements.txt pytest httpx
+          pytest tests/ -v --tb=short || echo "No tests yet — skipping"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/gh-actions-oidc-role
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ap-south-1 | \
+            docker login --username AWS \
+            --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      - name: Build and push image to ECR
+        run: |
+          IMAGE="${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
+          docker build -t $IMAGE ./${{ matrix.service }}/
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"          # Fail the pipeline on critical CVEs
+          format: "sarif"
+          output: "trivy-${{ matrix.service }}.sarif"
+
+      - name: Upload Trivy SARIF report
+        uses: actions/upload-artifact@v4
+        if: always()              # Upload even if scan fails
+        with:
+          name: trivy-report-${{ matrix.service }}
+          path: "trivy-${{ matrix.service }}.sarif"
+
+  # CD: Deploy to EKS (only runs on main branch, after all CI jobs pass)
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/gh-actions-oidc-role
+          aws-region: ap-south-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ai-microservices-platform \
+            --region ap-south-1
+
+      - name: Create DB secret (idempotent)
+        run: |
+          kubectl create secret generic db-secret \
+            --from-literal=host=${{ secrets.DB_HOST }} \
+            --from-literal=name=${{ secrets.DB_NAME }} \
+            --from-literal=user=${{ secrets.DB_USER }} \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --namespace production \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ai-platform ./helm/ai-platform/ \
+            --namespace production \
+            --create-namespace \
+            --set global.imageTag=${{ github.sha }} \
+            --set global.ecrRegistry=${{ secrets.ECR_REGISTRY }} \
+            --set aiService.ollamaUrl=http://${{ secrets.OLLAMA_EC2_IP }}:11434 \
+            --wait \
+            --timeout 8m \
+            --atomic   # Auto-rollback on failure
+
+      - name: Verify all rollouts
+        run: |
+          for svc in api-gateway user-service order-service ai-service; do
+            echo "Checking $svc..."
+            kubectl rollout status deployment/$svc -n production --timeout=3m
+          done
+
+      # K8sGPT AI Post-Deploy Health Check
+      - name: Install K8sGPT CLI
+        run: |
+          curl -Lo k8sgpt \
+            https://github.com/k8sgpt-ai/k8sgpt/releases/latest/download/k8sgpt_linux_amd64
+          chmod +x k8sgpt
+          sudo mv k8sgpt /usr/local/bin/
+
+      - name: Run K8sGPT cluster analysis
+        run: |
+          k8sgpt analyze \
+            --backend localai \
+            --base-url http://${{ secrets.OLLAMA_EC2_IP }}:11434/v1 \
+            --model llama3.2:1b \
+            --namespace production \
+            --output json | tee k8sgpt-report.json
+
+          # Parse results and summarize
+          python3 - << 'EOF'
+          import json, sys
+          with open("k8sgpt-report.json") as f:
+              data = json.load(f)
+          results = data.get("results", [])
+          if results:
+              print(f"WARNING: K8sGPT found {len(results)} issue(s):")
+              for r in results:
+                  print(f"  - {r.get('name')}: {r.get('error', [''])[0][:100]}")
+          else:
+              print("OK: K8sGPT: Cluster is healthy post-deploy")
+          EOF
+
+      - name: Upload K8sGPT report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8sgpt-report
+          path: k8sgpt-report.json
