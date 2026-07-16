@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: ai-service
+   namespace: production
+spec:
+  replicas: {{ .Values.aiService.replicaCount }}
+  selector:
+    matchLabels:
+      app: ai-service
+  template: 
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      containers:
+      - name: ai-service
+        image: "{{ .Values.global.ecrRegistry }}/ai-service:{{ .Values.global.imageTag }}"
+        ports:
+        - containerPort: {{ .Values.aiService.port }}
+        resources:
+          requests:
+            memory: {{ .Values.aiService.resources.requests.memory }}
+            cpu: {{ .Values.aiService.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.aiService.resources.limits.memory }}
+            cpu: {{ .Values.aiService.resources.limits.cpu }}
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.aiService.port }}
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.aiService.port }}
+        initialDelaySeconds: 30
+        periodSeconds: 30  
+      envFrom:
+      - configMapRef:
+          name: platform-config

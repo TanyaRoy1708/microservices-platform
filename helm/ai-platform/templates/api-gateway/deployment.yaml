@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: api-gateway
+   namespace: production
+spec:
+  replicas: {{ .Values.apiGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app: api-gateway
+  template: 
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: "{{ .Values.global.ecrRegistry }}/api-gateway:{{ .Values.global.imageTag }}"
+        ports:
+        - containerPort: {{ .Values.apiGateway.port }}
+        resources:
+          requests:
+            memory: {{ .Values.apiGateway.resources.requests.memory }}
+            cpu: {{ .Values.apiGateway.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.apiGateway.resources.limits.memory }}
+            cpu: {{ .Values.apiGateway.resources.limits.cpu }}
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.apiGateway.port }}
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.apiGateway.port }}
+        initialDelaySeconds: 30
+        periodSeconds: 30  
+      envFrom:
+      - configMapRef:
+          name: platform-config

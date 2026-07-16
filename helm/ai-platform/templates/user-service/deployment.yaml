@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: user-service
+   namespace: production
+spec:
+  replicas: {{ .Values.userService.replicaCount }}
+  selector:
+    matchLabels:
+      app: user-service
+  template: 
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: "{{ .Values.global.ecrRegistry }}/user-service:{{ .Values.global.imageTag }}"
+        ports:
+        - containerPort: {{ .Values.userService.port }}
+        resources:
+          requests:
+            memory: {{ .Values.userService.resources.requests.memory }}
+            cpu: {{ .Values.userService.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.userService.resources.limits.memory }}
+            cpu: {{ .Values.userService.resources.limits.cpu }}
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.userService.port }}
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.userService.port }}
+        initialDelaySeconds: 30
+        periodSeconds: 30  
+      envFrom:
+      - configMapRef:
+          name: platform-config
+      env:
+      - name: DB_HOST
+        valueFrom:
+          secretKeyRef:
+            name: db-key
+            key: host
+      - name: DB_NAME
+        valueFrom:
+          secretKeyRef:
+            name: db-key
+            key: name
+      - name: DB_USER
+        valueFrom:
+          secretKeyRef:
+            name: db-key
+            key: user            
+      - name: DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db-key
+            key: password

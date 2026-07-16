@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: production
+data:
+  USER_SERVICE_URL: "http://user-service:5001"
+  ORDER_SERVICE_URL: "http://order-service:5002"
+  AI_SERVICE_URL: "http://ai-service:5003"
+  OLLAMA_BASE_URL: {{ .Values.aiService.ollamaUrl | quote }}
+  OLLAMA_MODEL: {{ .Values.aiService.model | quote }}
