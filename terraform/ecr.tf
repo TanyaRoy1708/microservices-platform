@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_ecr_repository" "services" {
   for_each = toset(["api-gateway", "user-service", "order-service", "ai-service"])
 
