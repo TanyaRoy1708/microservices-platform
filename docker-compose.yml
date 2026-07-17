@@ -1,5 +1,3 @@
-﻿version: '3.9'
-
 services:
   # Infrastructure
   postgres:
@@ -36,7 +34,7 @@ services:
     # host would allow unauthenticated LLM access to any process on the machine.
     networks: [backend, ai]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
