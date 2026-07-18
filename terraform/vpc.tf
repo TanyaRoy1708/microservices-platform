@@ -21,3 +21,11 @@ module "vpc" {
   }
 
 }
+
+
+# 1 Virtual Private Cloud (VPC) (named microservices-vpc)
+# 2 Public Subnets (across 2 availability zones)
+# 2 Private Subnets (across 2 availability zones)
+# 1 NAT Gateway (since single_nat_gateway = true is set)
+# The VPC module also automatically creates 1 
+# Internet Gateway and necessary route tables behind the scenes.

@@ -14,3 +14,6 @@ resource "aws_ecr_repository" "services" {
 output "ecr_registry" {
   value = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 }
+
+
+# 4 Elastic Container Registry (ECR) Repositories (specifically named api-gateway, user-service, order-service, and ai-service)

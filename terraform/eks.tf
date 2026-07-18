@@ -29,3 +29,8 @@
   # AWS verifies this token. If it trusts the token it issued temporary creds.
   enable_irsa = true
 }
+
+
+# 1 Elastic Kubernetes Service (EKS) Cluster (named ai-microservices-platform running version 1.30)
+# 1 Managed Node Group (named spot_workers, using SPOT instances with a desired capacity of 2 nodes, scaling between 1 to 5)
+# 1 OIDC Identity Provider (created automatically because enable_irsa = true is set, allowing pods to assume IAM roles).

@@ -44,3 +44,9 @@ resource "aws_db_instance" "postgres" {
   skip_final_snapshot  = true
   publicly_accessible  = false
 }
+
+
+# 1 RDS PostgreSQL Database Instance (named microservices-db running engine version 15 on a db.t3.micro)
+# 1 DB Subnet Group (named microservices-db-subnet-group to place the DB in the private subnets)
+# 1 Security Group (named microservices-rds-sg to allow inbound PostgreSQL traffic on port 5432 from within the VPC)
+
