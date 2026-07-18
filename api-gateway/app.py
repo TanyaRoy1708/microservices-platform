@@ -1,3 +1,11 @@
+"""
+This service acts as the single entry point for all external client requests.
+It routes incoming HTTP requests to the appropriate downstream microservices 
+(like users, orders, or AI) based on the URL path. It also provides a basic 
+health check endpoint for load balancers.
+
+Flow: Client Request -> API Gateway -> (Routing) -> Downstream Microservice (User/Order/AI) -> Response back to Client
+"""
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 import httpx, os, logging
