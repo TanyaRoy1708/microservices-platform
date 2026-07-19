@@ -125,8 +125,8 @@ jobs:
       # K8sGPT AI Post-Deploy Health Check
       - name: Install K8sGPT CLI
         run: |
-          curl -Lo k8sgpt \
-            https://github.com/k8sgpt-ai/k8sgpt/releases/latest/download/k8sgpt_linux_amd64
+          curl -LO https://github.com/k8sgpt-ai/k8sgpt/releases/latest/download/k8sgpt_Linux_x86_64.tar.gz
+          tar -xzf k8sgpt_Linux_x86_64.tar.gz
           chmod +x k8sgpt
           sudo mv k8sgpt /usr/local/bin/
 
