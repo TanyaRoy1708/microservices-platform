@@ -25,39 +25,39 @@ spec:
           limits:
             memory: {{ .Values.orderService.resources.limits.memory }}
             cpu: {{ .Values.orderService.resources.limits.cpu }}
-      readinessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.orderService.port }}
-        initialDelaySeconds: 10
-        periodSeconds: 10
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.orderService.port }}
-        initialDelaySeconds: 30
-        periodSeconds: 30  
-      envFrom:
-      - configMapRef:
-          name: platform-config
-      env:
-      - name: DB_HOST
-        valueFrom:
-          secretKeyRef:
-            name: db-key
-            key: host
-      - name: DB_NAME
-        valueFrom:
-          secretKeyRef:
-            name: db-key
-            key: name
-      - name: DB_USER
-        valueFrom:
-          secretKeyRef:
-            name: db-key
-            key: user            
-      - name: DB_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: db-key
-            key: password
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.orderService.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.orderService.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30  
+        envFrom:
+        - configMapRef:
+            name: platform-config
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: host
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: user            
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password

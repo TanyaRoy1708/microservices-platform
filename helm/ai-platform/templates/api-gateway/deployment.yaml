@@ -25,18 +25,18 @@ spec:
           limits:
             memory: {{ .Values.apiGateway.resources.limits.memory }}
             cpu: {{ .Values.apiGateway.resources.limits.cpu }}
-      readinessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.apiGateway.port }}
-        initialDelaySeconds: 10
-        periodSeconds: 10
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.apiGateway.port }}
-        initialDelaySeconds: 30
-        periodSeconds: 30  
-      envFrom:
-      - configMapRef:
-          name: platform-config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.apiGateway.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.apiGateway.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30  
+        envFrom:
+        - configMapRef:
+            name: platform-config

@@ -25,18 +25,18 @@ spec:
           limits:
             memory: {{ .Values.aiService.resources.limits.memory }}
             cpu: {{ .Values.aiService.resources.limits.cpu }}
-      readinessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.aiService.port }}
-        initialDelaySeconds: 10
-        periodSeconds: 10
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: {{ .Values.aiService.port }}
-        initialDelaySeconds: 30
-        periodSeconds: 30  
-      envFrom:
-      - configMapRef:
-          name: platform-config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.aiService.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.aiService.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30  
+        envFrom:
+        - configMapRef:
+            name: platform-config
