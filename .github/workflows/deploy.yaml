@@ -132,10 +132,9 @@ jobs:
 
       - name: Run K8sGPT cluster analysis
         run: |
+          k8sgpt auth add --backend localai --model llama3.2:1b --baseurl http://${{ secrets.OLLAMA_EC2_IP }}:11434/v1
           k8sgpt analyze \
             --backend localai \
-            --base-url http://${{ secrets.OLLAMA_EC2_IP }}:11434/v1 \
-            --model llama3.2:1b \
             --namespace production \
             --output json | tee k8sgpt-report.json
 
