@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init-job
+  namespace: production
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      name: db-init-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: postgres-client
+        image: postgres:15-alpine
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: host
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: user            
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        command: ["/bin/sh", "-c"]
+        args:
+        - "echo 'Running database initialization...' && psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f /mnt/init.sql"
+        volumeMounts:
+        - name: init-sql-volume
+          mountPath: /mnt
+      volumes:
+      - name: init-sql-volume
+        configMap:
+          name: db-init-script

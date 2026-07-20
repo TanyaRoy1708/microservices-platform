@@ -105,6 +105,8 @@ jobs:
 
       - name: Deploy with Helm
         run: |
+          mkdir -p helm/ai-platform/files
+          cp init.sql helm/ai-platform/files/init.sql
           helm upgrade --install ai-platform ./helm/ai-platform/ \
             --namespace production \
             --create-namespace \

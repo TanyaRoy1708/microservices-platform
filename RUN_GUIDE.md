@@ -136,7 +136,8 @@ Push your code to the `main` branch. GitHub Actions will automatically:
 1. Build the Docker images for all 4 services.
 2. Run Trivy vulnerability scans.
 3. Push images to Amazon ECR.
-4. Deploy the services to EKS using the `helm/ai-platform` chart.
+4. Deploy the services to EKS using the `helm/ai-platform` chart. 
+   *(Note: The Helm chart includes a pre-install Kubernetes Job that automatically connects to the RDS instance and executes `init.sql` to initialize your database schema!)*
 
 ### Verification in the Cloud
 Once deployed, retrieve the ALB hostname:

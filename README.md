@@ -21,6 +21,7 @@ I built this project to showcase hands-on experience with modern cloud-native to
 - **CI/CD Automation (GitHub Actions):** Designed an automated pipeline that builds Docker images, runs unit tests, and deploys to Kubernetes.
 - **Security & IAM (OIDC & Trivy):** Configured GitHub Actions to authenticate securely to AWS using OpenID Connect (OIDC) instead of static keys. Integrated Trivy into the pipeline to scan containers and automatically block deployments if critical vulnerabilities are found.
 - **Kubernetes Orchestration (Helm & EKS):** Packaged the microservices into a unified Helm chart. Implemented Horizontal Pod Autoscalers (HPA), ClusterIP internal routing, and an AWS Application Load Balancer (ALB) via Ingress.
+- **Automated Database Migrations:** Designed a Kubernetes Job using Helm Hooks (`pre-install`) to automatically initialize the AWS RDS PostgreSQL schema during CI/CD deployments without exposing the database to the internet.
 - **Microservices Data Flow:** Implemented Database Connection Pooling (`psycopg2.pool`) for PostgreSQL to prevent connection exhaustion and dramatically reduce latency, alongside a Redis cache to optimize frequent database reads.
 
 ---
