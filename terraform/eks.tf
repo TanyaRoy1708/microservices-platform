@@ -1,9 +1,9 @@
-﻿module "eks" {
+module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
   cluster_name    = "ai-microservices-platform"
-  cluster_version = "1.30"
+  cluster_version = "1.36"
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnets
 
@@ -31,6 +31,6 @@
 }
 
 
-# 1 Elastic Kubernetes Service (EKS) Cluster (named ai-microservices-platform running version 1.30)
+# 1 Elastic Kubernetes Service (EKS) Cluster (named ai-microservices-platform running version 1.36)
 # 1 Managed Node Group (named spot_workers, using SPOT instances with a desired capacity of 2 nodes, scaling between 1 to 5)
 # 1 OIDC Identity Provider (created automatically because enable_irsa = true is set, allowing pods to assume IAM roles).

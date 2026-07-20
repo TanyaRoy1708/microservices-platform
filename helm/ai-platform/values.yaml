@@ -1,5 +1,5 @@
-﻿global :
-  imageTag: "latest"
+global :
+  imageTag: "1.0.0"
   ecrRegistry: ""
 
 apiGateway:

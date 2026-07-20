@@ -59,7 +59,7 @@ jobs:
         with:
           image-ref: "${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
           severity: "CRITICAL,HIGH"
-          exit-code: "0"          # Fail the pipeline on critical CVEs
+          exit-code: "1"          # Fail the pipeline on critical CVEs
           format: "sarif"
           output: "trivy-${{ matrix.service }}.sarif"
 
@@ -121,41 +121,3 @@ jobs:
             echo "Checking $svc..."
             kubectl rollout status deployment/$svc -n production --timeout=3m
           done
-
-      # K8sGPT AI Post-Deploy Health Check
-      - name: Install K8sGPT CLI
-        run: |
-          curl -LO https://github.com/k8sgpt-ai/k8sgpt/releases/latest/download/k8sgpt_Linux_x86_64.tar.gz
-          tar -xzf k8sgpt_Linux_x86_64.tar.gz
-          chmod +x k8sgpt
-          sudo mv k8sgpt /usr/local/bin/
-
-      - name: Run K8sGPT cluster analysis
-        run: |
-          k8sgpt auth add --backend localai --model llama3.2:1b --baseurl http://${{ secrets.OLLAMA_EC2_IP }}:11434/v1
-          k8sgpt analyze \
-            --backend localai \
-            --namespace production \
-            --output json | tee k8sgpt-report.json
-
-          python3 - << 'EOF'
-          import json, sys
-          with open("k8sgpt-report.json") as f:
-              data = json.load(f)
-          results = data.get("results", [])
-          if results:
-              print(f"WARNING: K8sGPT found {len(results)} issue(s):")
-              for r in results:
-                  err = r.get('error', [{}])[0]
-                  err_text = err.get('Text', '') if isinstance(err, dict) else str(err)
-                  print(f"  - {r.get('name')}: {err_text[:100]}")
-          else:
-              print("OK: K8sGPT: Cluster is healthy post-deploy")
-          EOF
-
-      - name: Upload K8sGPT report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: k8sgpt-report
-          path: k8sgpt-report.json

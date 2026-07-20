@@ -1,7 +1,7 @@
 # GitHub Actions OIDC Setup
 
 One-time setup. Run after `terraform apply`, before pushing to `main` for the first time.
-Replaces static AWS keys with per-run temporary credentials — nothing sensitive stored in GitHub.
+Replaces static AWS keys with per-run temporary credentials - nothing sensitive stored in GitHub.
 
 Replace `<YOUR_ACCOUNT_ID>` and `<YOUR_GITHUB_ORG/REPO>` throughout.
 
@@ -67,7 +67,7 @@ aws iam create-role \
   --description "GitHub Actions OIDC role for microservices-platform"
 ```
 
-> This is the role the pipeline assumes. No passwords — GitHub gets a short-lived token per run.
+> This is the role the pipeline assumes. No passwords - GitHub gets a short-lived token per run.
 
 ---
 
@@ -79,10 +79,25 @@ aws iam attach-role-policy \
   --role-name gh-actions-oidc-role \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
 
-# Allows kubectl and helm deploy against EKS
-aws iam attach-role-policy \
+# Grant IAM permission to update kubeconfig
+aws iam put-role-policy \
   --role-name gh-actions-oidc-role \
-  --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+  --policy-name EKSDescribeClusterPolicy \
+  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["eks:DescribeCluster"],"Resource":"*"}]}'
+
+# Grant Kubernetes ClusterAdmin access (EKS Access Entry)
+aws eks create-access-entry \
+  --cluster-name ai-microservices-platform \
+  --principal-arn arn:aws:iam::<YOUR_ACCOUNT_ID>:role/gh-actions-oidc-role \
+  --type STANDARD \
+  --region ap-south-1
+
+aws eks associate-access-policy \
+  --cluster-name ai-microservices-platform \
+  --principal-arn arn:aws:iam::<YOUR_ACCOUNT_ID>:role/gh-actions-oidc-role \
+  --access-scope type=cluster \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --region ap-south-1
 ```
 
 ---
@@ -97,7 +112,7 @@ rm trust-policy.json
 
 ## 6. Add secrets to GitHub
 
-`Settings ? Secrets and variables ? Actions ? New repository secret`
+`Settings -> Secrets and variables -> Actions -> New repository secret`
 
 | Secret | Value |
 |---|---|
@@ -109,5 +124,5 @@ rm trust-policy.json
 | `DB_PASSWORD` | your RDS master password |
 | `OLLAMA_EC2_IP` | private IP of the EC2 running Ollama |
 
-> These are the only secrets needed. AWS credentials are never stored — the pipeline
+> These are the only secrets needed. AWS credentials are never stored - the pipeline
 > uses the OIDC role above to get temporary creds at runtime.
