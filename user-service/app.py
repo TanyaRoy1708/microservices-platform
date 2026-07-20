@@ -2,57 +2,73 @@
 This service manages user-related operations. It exposes a RESTful API to 
 fetch user data and connects directly to a PostgreSQL database to query 
 the underlying user records.
-test line
-Flow: API Gateway -> User Service (Flask API) -> PostgreSQL Database (User Data) -> Response
+
+Flow: API Gateway -> User Service (FastAPI) -> PostgreSQL Database (User Data) -> Response
 """
-from flask import Flask, jsonify
-from contextlib import closing
+from fastapi import FastAPI, HTTPException, Query
+from contextlib import closing, contextmanager
 import psycopg2, os, logging
+from psycopg2 import pool
 
 logging.basicConfig(level=logging.INFO)
-app = Flask(__name__)
+app = FastAPI(title="User Service", version="1.0")
 
 
-def get_db_conn():
-    return psycopg2.connect(
+db_pool = None
+
+@app.on_event("startup")
+def startup_event():
+    global db_pool
+    db_pool = pool.SimpleConnectionPool(
+        1, 20,
         host=os.environ['DB_HOST'],
         database=os.environ['DB_NAME'],
         user=os.environ['DB_USER'],
         password=os.environ['DB_PASSWORD']
     )
 
+@app.on_event("shutdown")
+def shutdown_event():
+    if db_pool:
+        db_pool.closeall()
 
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy", "service": "user-service", "version": "1.0"})
-
-
-@app.route('/users', methods=['GET'])
-def get_users():
-    # contextlib.closing guarantees conn.close() is called even if an
-    # exception is raised mid-query. Prevents connection exhaustion on
-    # PostgreSQL's default max_connections=100.
-    # NOTE: Per-request connect() is intentional for Phase 1 simplicity.
-    # A ThreadedConnectionPool / SQLAlchemy pool is planned for Phase 2
-    # when throughput requirements are established.
+@contextmanager
+def get_db_conn():
+    conn = db_pool.getconn()
     try:
-        from flask import request
-        with closing(get_db_conn()) as conn:
+        yield conn
+    finally:
+        db_pool.putconn(conn)
+
+
+@app.get('/health')
+def health():
+    return {"status": "healthy", "service": "user-service", "version": "1.0"}
+
+
+@app.get('/users')
+def get_users(
+    name: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    email: Optional[str] = Query(None)
+):
+    try:
+        with get_db_conn() as conn:
             with closing(conn.cursor()) as cur:
                 query = "SELECT id, name, email, city FROM users WHERE 1=1"
                 params = []
 
-                if request.args.get('name'):
+                if name:
                     query += " AND LOWER(name) = LOWER(%s)"
-                    params.append(request.args.get('name'))
+                    params.append(name)
 
-                if request.args.get('city'):
+                if city:
                     query += " AND LOWER(city) = LOWER(%s)"
-                    params.append(request.args.get('city'))
+                    params.append(city)
 
-                if request.args.get('email'):
+                if email:
                     query += " AND email = %s"
-                    params.append(request.args.get('email'))
+                    params.append(email)
 
                 cur.execute(query, params)
                 users = [
@@ -60,16 +76,16 @@ def get_users():
                     for r in cur.fetchall()
                 ]
         logging.info(f"Fetched {len(users)} users")
-        return jsonify(users)
+        return users
     except Exception as e:
         logging.error(f"DB error: {e}")
-        return jsonify({"error": "database error"}), 500
+        raise HTTPException(status_code=500, detail="database error")
 
 
-@app.route('/users/<int:user_id>', methods=['GET'])
-def get_user(user_id):
+@app.get('/users/{user_id}')
+def get_user(user_id: int):
     try:
-        with closing(get_db_conn()) as conn:
+        with get_db_conn() as conn:
             with closing(conn.cursor()) as cur:
                 cur.execute(
                     "SELECT id, name, email, city FROM users WHERE id = %s;",
@@ -77,12 +93,15 @@ def get_user(user_id):
                 )
                 row = cur.fetchone()
         if not row:
-            return jsonify({"error": "user not found"}), 404
-        return jsonify({"id": row[0], "name": row[1], "email": row[2], "city": row[3]})
+            raise HTTPException(status_code=404, detail="user not found")
+        return {"id": row[0], "name": row[1], "email": row[2], "city": row[3]}
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"DB error for user {user_id}: {e}")
-        return jsonify({"error": "database error"}), 500
+        raise HTTPException(status_code=500, detail="database error")
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=5001)
