@@ -48,9 +48,9 @@ def health():
 
 @app.get('/users')
 def get_users(
-    name: Optional[str] = Query(None),
-    city: Optional[str] = Query(None),
-    email: Optional[str] = Query(None)
+    name: str | None = Query(None),
+    city: str | None = Query(None),
+    email: str | None = Query(None)
 ):
     try:
         with get_db_conn() as conn:
