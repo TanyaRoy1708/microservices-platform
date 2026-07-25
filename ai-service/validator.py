@@ -1,11 +1,11 @@
 ALLOWED_SERVICES = {"users", "orders"}
 ALLOWED_OPERATIONS = {
     "users": {"list_users", "find_user_by_name", "find_users_by_city"},
-    "orders": {"list_orders", "find_orders_by_status", "find_orders_by_user"}
+    "orders": {"list_orders", "find_orders_by_status", "find_orders_by_user", "find_orders_by_amount"}
 }
 ALLOWED_FILTERS = {
     "users": {"name", "city"},
-    "orders": {"status", "user_id", "user_name"}
+    "orders": {"status", "user_id", "user_name", "min_amount", "max_amount"}
 }
 
 def validate_intent(intent: dict) -> tuple[bool, str]:
