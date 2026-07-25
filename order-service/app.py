@@ -55,7 +55,9 @@ def health():
 def get_orders(
     request: Request,
     status: Optional[str] = Query(None),
-    user_id: Optional[int] = Query(None)
+    user_id: Optional[int] = Query(None),
+    min_amount: Optional[float] = Query(None),
+    max_amount: Optional[float] = Query(None)
 ):
     cache_key = "orders_" + "_".join([f"{k}={v}" for k, v in sorted(request.query_params.items())])
     if cache_key == "orders_":
@@ -79,6 +81,14 @@ def get_orders(
                 if user_id:
                     query += " AND user_id = %s"
                     params.append(user_id)
+
+                if min_amount is not None:
+                    query += " AND amount >= %s"
+                    params.append(min_amount)
+
+                if max_amount is not None:
+                    query += " AND amount <= %s"
+                    params.append(max_amount)
 
                 cur.execute(query, params)
                 orders = [

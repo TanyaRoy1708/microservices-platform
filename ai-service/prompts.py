@@ -9,8 +9,9 @@ Service: users
 
 Service: orders
 - list_orders
-- find_orders_by_status (filters: status — allowed values: pending, completed, cancelled)
+- find_orders_by_status (filters: status — allowed values: pending, completed, cancelled, delivered, shipped)
 - find_orders_by_user (filters: user_id OR user_name)
+- find_orders_by_amount (filters: min_amount, max_amount)
 
 Return ONLY valid JSON in this exact format:
 {
