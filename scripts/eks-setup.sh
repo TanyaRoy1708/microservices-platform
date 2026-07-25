@@ -38,28 +38,29 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 kubectl rollout status deployment aws-load-balancer-controller -n kube-system
 
 # =====================================================================
-# IAM Policy Automation
+# IAM Policy Instructions
 # =====================================================================
 # The ALB Controller needs AWS IAM permissions to actually create/delete Load Balancers in your AWS account.
-# We will dynamically extract the Terraform-generated IAM Role Name and attach the policy automatically.
+# These lines print out manual instructions for the user to attach the required IAM policy to the EC2 worker nodes.
 
-echo "Extracting EKS Node Group IAM Role Name..."
+echo "Attaching ALB permissions to your EKS worker node IAM role automatically..."
+
+# Extract the exact role name dynamically
 CLUSTER_NAME="ai-microservices-platform"
 NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $CLUSTER_NAME --query "nodegroups[0]" --output text)
 NODE_ROLE_ARN=$(aws eks describe-nodegroup --cluster-name $CLUSTER_NAME --nodegroup-name $NODEGROUP_NAME --query "nodegroup.nodeRole" --output text)
 NODE_ROLE_NAME=$(basename $NODE_ROLE_ARN)
-echo "Found Node Role Name: $NODE_ROLE_NAME"
 
-echo "Downloading official ALB IAM Policy (using main branch to avoid version 404 errors)..."
+# Download the valid policy from the main branch (v3.4.2 does not exist on GitHub releases)
 curl -s -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
 
-echo "Attaching policy to $NODE_ROLE_NAME..."
+# Attach the policy automatically
 aws iam put-role-policy \
     --role-name $NODE_ROLE_NAME \
     --policy-name AWSLoadBalancerControllerIAMPolicy \
     --policy-document file://iam_policy.json
 
-echo "Policy successfully attached!"
+echo "Successfully attached ALB policy to $NODE_ROLE_NAME!"
 
 # Run a final check to list the pods and grep for the load balancer to visually prove it is running.
 kubectl get pods -n kube-system | grep aws-load-balancer

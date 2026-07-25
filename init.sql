@@ -23,9 +23,13 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO orders (user_id, product, amount, status) VALUES
-    (1, 'MacBook Pro',    120000.00, 'delivered'),
-    (2, 'iPhone 15',       85000.00, 'shipped'),
-    (3, 'AirPods Pro',     20000.00, 'pending'),
-    (1, 'iPad Air',        65000.00, 'delivered'),
-    (4, 'Apple Watch',     45000.00, 'cancelled');
+INSERT INTO orders (user_id, product, amount, status)
+SELECT 1, 'MacBook Pro', 120000.00, 'delivered' WHERE NOT EXISTS (SELECT 1 FROM orders)
+UNION ALL
+SELECT 2, 'iPhone 15', 85000.00, 'shipped' WHERE NOT EXISTS (SELECT 1 FROM orders)
+UNION ALL
+SELECT 3, 'AirPods Pro', 20000.00, 'pending' WHERE NOT EXISTS (SELECT 1 FROM orders)
+UNION ALL
+SELECT 1, 'iPad Air', 65000.00, 'delivered' WHERE NOT EXISTS (SELECT 1 FROM orders)
+UNION ALL
+SELECT 4, 'Apple Watch', 45000.00, 'cancelled' WHERE NOT EXISTS (SELECT 1 FROM orders);

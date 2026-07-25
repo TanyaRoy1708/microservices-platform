@@ -29,9 +29,10 @@ services:
     image: ollama/ollama:0.3.14
     volumes:
       - ollama_models:/root/.ollama   # persist downloaded models
-    # Port intentionally NOT exposed to host - ai-service reaches Ollama
-    # via internal Docker DNS (http://ollama:11434). Exposing 11434 to the
-    # host would allow unauthenticated LLM access to any process on the machine.
+    # Exposing the port so the EKS cluster can reach it!
+    # Make sure your EC2 Security Group restricts port 11434 to only your EKS cluster!
+    ports:
+      - "0.0.0.0:11434:11434"
     networks: [backend, ai]
     healthcheck:
       test: ["CMD", "ollama", "list"]
