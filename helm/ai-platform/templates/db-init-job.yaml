@@ -39,7 +39,7 @@ spec:
               key: password
         command: ["/bin/sh", "-c"]
         args:
-        - "echo 'Running database initialization...' && psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f /mnt/init.sql"
+        - "echo 'Running database initialization...' && PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f /mnt/init.sql"
         volumeMounts:
         - name: init-sql-volume
           mountPath: /mnt
