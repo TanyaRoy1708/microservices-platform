@@ -117,7 +117,7 @@ For a complete, step-by-step guide on how I provisioned the AWS infrastructure w
 
 ### How the CI/CD Pipeline Works
 Whenever code is pushed to the `main` branch, GitHub Actions takes over:
-1. **Parallel Testing:** Runs `pytest` on all microservices simultaneously.
+1. **Parallel Testing:** Runs `pytest` on all microservices simultaneously
 2. **Build & Scan:** Builds the Docker images and scans them for CVEs using **Trivy**.
 3. **Registry Push:** Authenticates to AWS via OIDC and pushes images to Amazon ECR.
 4. **Helm Deployment:** Runs a `helm upgrade` against the EKS cluster to deploy the new microservices, rolling back automatically if health checks fail.
