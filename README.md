@@ -87,6 +87,9 @@ cd microservices-platform
 bash scripts/setup.sh
 ```
 
+**All systems go!** 
+<img src="./screenshots/docker compose ps.png" width="800" alt="Docker Compose Status">
+
 **Verify it's working:**
 ```bash
 # Check if the API Gateway is healthy
@@ -97,6 +100,12 @@ curl -s -X POST http://localhost:8000/ai/query \
   -H 'Content-Type: application/json' \
   -d '{"query": "Show me all orders over 5000"}'
 ```
+
+<img src="./screenshots/ai-query.png" width="800" alt="AI Query Result">
+
+**Interactive API Documentation:**
+FastAPI provides a beautiful, interactive Swagger UI automatically at `http://localhost:8000/docs`.
+<img src="./screenshots/api-gateway-swagger.png" width="800" alt="FastAPI Swagger UI">
 
 ---
 
