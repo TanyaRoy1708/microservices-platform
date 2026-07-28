@@ -250,7 +250,7 @@ microservices-platform/
 
 ## 🧩 Engineering Challenges Solved
 
-These are real problems I debugged and solved during this project — not theoretical:
+These are real problems I debugged and solved during this project:
 
 | Challenge | Root Cause | Solution |
 |:---|:---|:---|
