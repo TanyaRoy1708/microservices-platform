@@ -123,6 +123,7 @@ Run the provided script to update your local kubeconfig and install the AWS Load
 ```bash
 bash scripts/eks-setup.sh
 ```
+*(Note: This script automatically extracts your EKS Node Group Role and attaches the required IAM policy for the ALB Controller using the official Kubernetes SIGs policy document).*
 
 ### Step 7.4: Set up GitHub Actions OIDC
 Configure GitHub Actions to securely assume an IAM role for deployments without hardcoded AWS keys. Follow the instructions in:
@@ -148,6 +149,9 @@ You can now access your APIs using the public ALB hostname (e.g. `http://<ALB-DN
 
 ## 8. Cloud Teardown
 To prevent ongoing AWS charges (~$4/day for EKS), tear down the infrastructure when finished:
+
+> **⚠️ CRITICAL WARNING:** You **MUST** uninstall the Helm release *before* running `terraform destroy`. The Kubernetes AWS Load Balancer Controller provisions an ALB in AWS. Because Terraform did not create this ALB, running `terraform destroy` first will cause the VPC deletion to hang forever due to attached Elastic Network Interfaces (ENIs).
+
 ```bash
 # 1. Uninstall Helm release
 helm uninstall ai-platform -n production
