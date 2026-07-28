@@ -13,7 +13,7 @@
 [![Helm](https://img.shields.io/badge/Helm-v3-0F1689?style=for-the-badge&logo=helm&logoColor=white)](https://helm.sh/)
 [![Trivy](https://img.shields.io/badge/Security-Trivy-1904DA?style=for-the-badge&logo=aquasecurity&logoColor=white)](https://trivy.dev/)
 
-> **A fully production-grade portfolio project** — 4 Python microservices containerized with Docker, orchestrated on AWS EKS with Terraform, deployed automatically via a GitOps CI/CD pipeline with security scanning, all backed by an AI-powered natural language query engine.
+> **A fully production-grade portfolio project** — 4 Python microservices containerized with Docker, orchestrated on AWS EKS with Terraform, deployed automatically via a push-based GitHub Actions CI/CD pipeline with security scanning, all backed by an AI-powered natural language query engine.
 
 </div>
 
@@ -24,12 +24,12 @@
 
 | Skill Area | What I Built |
 |:---|:---|
-| **Infrastructure as Code** | Provisioned 61 AWS resources (VPC, EKS, RDS, ECR) from scratch using Terraform modules with remote state in S3 + DynamoDB locking |
-| **CI/CD Automation** | Zero-touch deployment pipeline: code push → parallel test → Trivy CVE scan → ECR push → Helm upgrade on EKS |
+| **Infrastructure as Code** | Provisioned complete AWS infrastructure (VPC, EKS, RDS, ECR) from scratch using Terraform modules with remote state in S3 + DynamoDB locking |
+| **CI/CD Automation** | Fully automated deployment pipeline: code push → parallel test → Trivy CVE scan → ECR push → Helm upgrade on EKS |
 | **Security Engineering** | Keyless AWS authentication via OIDC federation; automated container vulnerability scanning that blocks deploys on critical CVEs |
-| **Kubernetes Orchestration** | HPA, Helm packaging, AWS ALB Ingress, ClusterIP service mesh, automated DB migrations via Helm hooks (`pre-install` Jobs) |
+| **Kubernetes Orchestration** | HPA, Helm packaging, AWS ALB Ingress, ClusterIP internal routing, automated DB migrations via Helm hooks (`pre-install` Jobs) |
 | **Cloud Cost Optimization** | EKS Spot Instance node group to reduce compute costs without sacrificing availability |
-| **Observability & Reliability** | PostgreSQL connection pooling (`psycopg2.pool`) + Redis caching layer to eliminate connection exhaustion and reduce DB read latency |
+| **Resilience & Performance** | PostgreSQL connection pooling (`psycopg2.pool`) + Ephemeral Redis caching layer to eliminate connection exhaustion and reduce DB read latency |
 | **AI Integration** | Natural language query engine powered by a locally hosted Llama 3.2 model via Ollama, running on a VPC-internal EC2 instance |
 
 ---
@@ -51,7 +51,7 @@ Internet ──HTTPS──▶ AWS ALB Ingress
                     │      └──▶ AI Service ─────────────────────┐ │
                     └───────────────────────────────────────────│─┘
                                                                 │
-                    EC2 Jumpbox (VPC-internal)                  │
+                    EC2 Jumpbox (t3.large, VPC-internal)        │
                     └──▶ Ollama / Llama 3.2 ◀───────────────────┘
 ```
 
@@ -69,7 +69,7 @@ The entire stack — microservices, PostgreSQL, Redis, and the Llama 3.2 AI mode
 | **IaC** | Terraform `~> 5.0` with S3 remote state & DynamoDB locking |
 | **Containers** | Docker, Docker Compose |
 | **Orchestration** | AWS EKS `v1.36` · Helm `v3` · AWS ALB Ingress Controller |
-| **CI/CD** | GitHub Actions (parallel matrix build + GitOps deploy) |
+| **CI/CD** | GitHub Actions (parallel matrix build + Helm deploy) |
 | **Security** | AWS OIDC Federation · Trivy container scanning (SARIF upload) |
 | **Backend** | Python `3.11` · FastAPI `0.103` |
 | **Databases** | AWS RDS PostgreSQL `15` · Redis `7` (in-cluster) |
@@ -104,9 +104,9 @@ The entire stack — microservices, PostgreSQL, Redis, and the Llama 3.2 AI mode
 
 ---
 
-### ✅ Terraform Apply — 61 AWS Resources Provisioned
+### ✅ Terraform Apply — Full Cloud Infrastructure Provisioned
 
-*`Apply complete! Resources: 61 added, 0 changed, 0 destroyed.` — Full VPC, EKS Spot node group, RDS endpoint, and ECR registry provisioned via IaC.*
+*Apply complete! — Full VPC, EKS Spot node group, RDS endpoint, and ECR registry provisioned via modular IaC.*
 
 ![Terraform Apply Output](./screenshots/terraform%20apply%20.png)
 
@@ -171,6 +171,8 @@ git push ──▶ main
 - **OIDC over static keys** — GitHub Actions federates with AWS IAM using short-lived tokens. No `AWS_SECRET_ACCESS_KEY` ever stored in secrets.
 - **`--atomic` Helm flag** — If any pod fails health checks, the deployment auto-rolls back. Zero manual intervention.
 - **Trivy SARIF upload** — Vulnerability reports are uploaded directly to GitHub Security tab for audit trails.
+- **Testing Strategy** — `pytest` runs unit and integration tests (mocking DB/Redis) targeting 80%+ coverage before any image is pushed.
+- **Trunk-based Development** — PRs run the CI matrix (tests + scans); merges to `main` trigger the CD deploy job.
 
 ---
 
@@ -180,7 +182,7 @@ git push ──▶ main
 
 ```bash
 # 1. Clone
-git clone <repo-url>
+git clone https://github.com/yourusername/microservices-platform.git
 cd microservices-platform
 
 # 2. Bootstrap everything (pulls images, seeds DB, starts all services)
@@ -191,8 +193,8 @@ curl -s -X POST http://localhost:8000/ai/query \
   -H 'Content-Type: application/json' \
   -d '{"query": "Show me all orders over 5000"}'
 
-# 4. Open Swagger UI
-open http://localhost:8000/docs
+# 4. Open Swagger UI (navigate in your browser)
+# http://localhost:8000/docs
 ```
 
 ---
@@ -262,16 +264,21 @@ These are real problems I debugged and solved during this project:
 
 ---
 
-## 📊 Project Metrics at a Glance
+## 📊 Project Metrics & Architecture Details
 
 | Metric | Value |
 |:---|:---|
-| AWS Resources provisioned via Terraform | **61** |
+| AWS Infrastructure | **Full Cloud Environment** *(Includes: VPC, Subnets, EKS Cluster, Spot Node Groups, RDS Postgres, ECR Repos, IAM, SGs, ALB)* |
 | Microservices deployed | **4** |
 | CI/CD pipeline duration | **~3 minutes** |
-| ECR private repositories | **4** |
 | Kubernetes pods in production | **9** (incl. DB init Job) |
-| Infrastructure environments | **2** (Local Docker Compose + AWS EKS) |
+| Estimated AWS Cost | **~$120/month** *(Heavily optimized via EKS Spot Instances and t3.micro RDS/EC2)* |
+
+---
+
+## 🔮 Future Improvements
+- **Observability Stack**: Deploy Prometheus & Grafana via Helm, and integrate structured JSON logging (e.g., FluentBit to CloudWatch).
+- **Security Hardening**: Implement mTLS (e.g., Istio or Linkerd) for pod-to-pod communication and move the internal EC2 LLM behind a private VPC endpoint instead of relying solely on Security Group CIDR rules.
 
 ---
 
