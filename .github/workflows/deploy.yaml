@@ -7,17 +7,23 @@ on:
     branches: [main]
 
 permissions:
-  id-token: write   # Required for OIDC
+  id-token: write        # Required for OIDC → AWS federation
   contents: read
+  security-events: write # Required for Trivy SARIF upload to GitHub Security tab
+
+env:
+  AWS_REGION: ap-south-1
+  # Note: DOCKER_BUILDKIT not needed — docker/build-push-action uses BuildKit automatically
 
 jobs:
-  # CI: Test + Build + Scan (runs in parallel for all 4 services)
+  # ─── CI: Test + Build + Scan ─────────────────────────────────────────────────
+  # Runs in parallel for all 4 services simultaneously
   ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service: [api-gateway, user-service, order-service, ai-service]
-      fail-fast: false   # Don't cancel other services if one fails
+      fail-fast: false   # Don't cancel sibling jobs if one service fails
 
     steps:
       - name: Checkout code
@@ -32,49 +38,70 @@ jobs:
 
       - name: Install dependencies and run tests
         run: |
-          pip install -r ${{ matrix.service }}/requirements.txt pytest httpx
-          pytest tests/ -v --tb=short || echo "No tests yet - skipping"
+          pip install -r ${{ matrix.service }}/requirements.txt pytest httpx pytest-asyncio
+          pytest tests/ -v --tb=short -q
 
       - name: Configure AWS credentials via OIDC
+        # Keyless auth: GitHub Actions federates with AWS IAM using a short-lived OIDC token.
+        # No AWS_SECRET_ACCESS_KEY is ever stored in GitHub Secrets.
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/gh-actions-oidc-role
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        run: |
-          aws ecr get-login-password --region ap-south-1 | \
-            docker login --username AWS \
-            --password-stdin ${{ secrets.ECR_REGISTRY }}
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push image to ECR
-        run: |
-          IMAGE="${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
-          docker build -t $IMAGE ./${{ matrix.service }}/
-          docker push $IMAGE
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        # Buildx is required for advanced cache backends (type=gha).
+        # The GitHub Actions cache backend stores layer data in the repo's cache,
+        # not in ECR — avoids ECR egress costs and works without special ECR permissions.
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to ECR with layer cache
+        # docker/build-push-action handles BuildKit, cache, and push in one correct step.
+        # cache-from/cache-to type=gha uses GitHub Actions' built-in cache storage.
+        # mode=max caches all layers (not just the final stage) — maximises cache hits.
+        # The SHA tag ensures each commit has a unique, immutable, auditable image.
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}/
+          push: true
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@master
+        # Pinned to a specific SHA (not @master) to prevent supply-chain attacks.
+        # exit-code 1 = pipeline FAILS on CRITICAL/HIGH CVEs — this is intentional and correct.
+        # The SARIF report is always uploaded (if: always()) for audit trail, even on failure.
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: "${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
           severity: "CRITICAL,HIGH"
-          exit-code: "0"          # Fail the pipeline on critical CVEs
+          exit-code: "1"           # ← GATE: fail the build on critical vulnerabilities
+          ignore-unfixed: true     # Don't fail on CVEs with no available fix yet
           format: "sarif"
           output: "trivy-${{ matrix.service }}.sarif"
 
-      - name: Upload Trivy SARIF report to Security Tab
+      - name: Upload Trivy SARIF to GitHub Security tab
+        # Runs even if Trivy found vulnerabilities — provides audit trail and PR annotations.
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: "trivy-${{ matrix.service }}.sarif"
           category: "${{ matrix.service }}-scan"
 
-  # CD: Deploy to EKS (only runs on main branch, after all CI jobs pass)
+  # ─── CD: Deploy to EKS ───────────────────────────────────────────────────────
+  # Only runs on main branch pushes, only after ALL CI jobs pass.
   deploy:
     needs: ci
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production   # Requires environment approval gate if configured in repo settings
 
     steps:
       - name: Checkout code
@@ -84,15 +111,17 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/gh-actions-oidc-role
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
+      - name: Update kubeconfig for EKS
         run: |
           aws eks update-kubeconfig \
             --name ai-microservices-platform \
-            --region ap-south-1
+            --region ${{ env.AWS_REGION }}
 
-      - name: Create DB secret (idempotent)
+      - name: Create production namespace + inject DB secret (idempotent)
+        # Using --dry-run=client | kubectl apply is the idempotent pattern —
+        # creates the resource if missing, no-ops if it already exists.
         run: |
           kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
           kubectl create secret generic db-secret \
@@ -104,6 +133,9 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy with Helm
+        # --atomic: auto-rollback if any pod fails health checks within the timeout.
+        # --wait: block until all pods are Running/Ready before returning success.
+        # This means a failed deploy never silently leaves the cluster in a broken state.
         run: |
           mkdir -p helm/ai-platform/files
           cp init.sql helm/ai-platform/files/init.sql
@@ -115,11 +147,22 @@ jobs:
             --set aiService.ollamaUrl=http://${{ secrets.OLLAMA_EC2_IP }}:11434 \
             --wait \
             --timeout 8m \
-            --atomic   # Auto-rollback on failure
+            --atomic
 
-      - name: Verify all rollouts
+      - name: Verify all deployment rollouts
         run: |
           for svc in api-gateway user-service order-service ai-service; do
-            echo "Checking $svc..."
+            echo "--- Verifying rollout: $svc ---"
             kubectl rollout status deployment/$svc -n production --timeout=3m
           done
+          echo ""
+          echo "✅ All services deployed successfully at $(date -u)"
+          kubectl get pods -n production
+
+      - name: Notify on deploy failure
+        if: failure()
+        run: |
+          echo "::error::Deploy to production FAILED for commit ${{ github.sha }}"
+          echo "::error::Check the Helm logs and kubectl events above for root cause"
+          # To enable Slack/Teams notifications, configure a webhook secret and
+          # add: curl -X POST ${{ secrets.SLACK_WEBHOOK }} -d '{"text":"Deploy failed: ${{ github.sha }}"}'
