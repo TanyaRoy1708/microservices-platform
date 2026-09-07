@@ -2,18 +2,48 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: api-gateway-hpa
-  namespace: production
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: api-gateway
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    managed-by: helm
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: api-gateway
-  minReplicas: 2
-  maxReplicas: 10
+  # Min/max pulled from values.yaml so they can be tuned per environment
+  # without changing the template
+  minReplicas: {{ .Values.apiGateway.hpa.minReplicas }}
+  maxReplicas: {{ .Values.apiGateway.hpa.maxReplicas }}
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 70
+        # Scale out when average CPU across all replicas exceeds 70%.
+        # At 70% we have headroom before saturation; at 80%+ latency degrades sharply.
+        averageUtilization: {{ .Values.apiGateway.hpa.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      # Scale up quickly on traffic spikes — add up to 4 pods every 30s
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Pods
+        value: 4
+        periodSeconds: 30
+    scaleDown:
+      # Scale down slowly — wait 5 minutes before removing pods.
+      # Prevents thrashing (scale down then immediately scale up again).
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60

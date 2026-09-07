@@ -1,0 +1,43 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: ai-service
+    managed-by: helm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: {{ .Values.aiService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.aiService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        # AI service is memory-heavy (httpx client pools) — use a lower CPU threshold
+        averageUtilization: {{ .Values.aiService.hpa.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleUp:
+      # AI service: scale up slower — each replica needs to warm up Ollama client connections
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 600   # Very conservative scale-down for AI (10 min)
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120

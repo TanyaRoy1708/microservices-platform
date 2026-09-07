@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: api-gateway
+    managed-by: helm
+spec:
+  # minAvailable: 1 ensures at least 1 api-gateway pod stays UP during:
+  #   - Node drain (kubectl drain) for upgrades or maintenance
+  #   - Spot instance interruption (AWS reclaims the node with 2-min notice)
+  #   - Cluster autoscaler scale-in events
+  # Without PDB, a drain could kill all pods simultaneously → full outage.
+  # This is especially critical since we use SPOT instances in this cluster.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway

@@ -1,7 +1,8 @@
-global :
+global:
   imageTag: "1.0.0"
   ecrRegistry: ""
 
+# ─── API Gateway ──────────────────────────────────────────────────────────────
 apiGateway:
   replicaCount: 2
   port: 8000
@@ -12,7 +13,14 @@ apiGateway:
     limits:
       memory: "256Mi"
       cpu: "300m"
+  hpa:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    minAvailable: 1
 
+# ─── User Service ─────────────────────────────────────────────────────────────
 userService:
   replicaCount: 2
   port: 5001
@@ -23,7 +31,14 @@ userService:
     limits:
       memory: "256Mi"
       cpu: "300m"
+  hpa:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    minAvailable: 1
 
+# ─── Order Service ────────────────────────────────────────────────────────────
 orderService:
   replicaCount: 2
   port: 5002
@@ -34,12 +49,22 @@ orderService:
     limits:
       memory: "256Mi"
       cpu: "300m"
+  hpa:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    minAvailable: 1
 
+# ─── AI Service ───────────────────────────────────────────────────────────────
+# AI service has higher resource requirements due to httpx connection pools
+# and heavier request payloads (LLM prompt + response handling).
+# Conservative HPA: LLM-backed services have higher warmup costs per pod.
 aiService:
   replicaCount: 2
   port: 5003
   model: "llama3.2:1b"
-  ollamaUrl: ""   # set via configmap - Ollama runs on EC2 sidecar
+  ollamaUrl: ""   # Set at deploy time via --set aiService.ollamaUrl= (Ollama runs on EC2)
   resources:
     requests:
       memory: "256Mi"
@@ -47,7 +72,14 @@ aiService:
     limits:
       memory: "512Mi"
       cpu: "500m"
+  hpa:
+    minReplicas: 1   # Can run with 1 — Ollama is the bottleneck, not this pod
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 65
+  pdb:
+    minAvailable: 1
 
+# ─── Ingress ──────────────────────────────────────────────────────────────────
 ingress:
   enabled: true
   className: "alb"

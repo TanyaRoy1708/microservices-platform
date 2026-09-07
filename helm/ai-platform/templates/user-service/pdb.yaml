@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: user-service-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: user-service
+    managed-by: helm
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: user-service
