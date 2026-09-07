@@ -7,30 +7,45 @@ module "eks" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnets
 
-  # Allow kubectl from your machine
-  cluster_endpoint_public_access = true
+  # The cluster API endpoint is public to allow kubectl from developer machines and CI/CD.
+  # Restrict access to specific CIDRs (your office IP + GitHub Actions egress ranges) in production.
+  # Full private endpoint requires a VPN or Bastion — appropriate for highly regulated environments.
+  cluster_endpoint_public_access       = true
+  cluster_endpoint_public_access_cidrs = var.allowed_cidr_blocks
 
-  # Grants the IAM role running Terraform admin access to the cluster
+  # Grants the IAM identity that runs Terraform admin access to the cluster via
+  # the aws-auth ConfigMap. Without this, Terraform itself can't manage cluster resources.
   enable_cluster_creator_admin_permissions = true
 
   eks_managed_node_groups = {
-    spot_workers = {                         #spot_workers is node group name
+    # Spot instances are ~70% cheaper than On-Demand for the same instance type.
+    # Trade-off: AWS can reclaim Spot instances with 2-min notice.
+    # Mitigated by: multiple instance types, HPA for rapid re-scheduling,
+    # and PodDisruptionBudgets ensuring minimum availability during drains.
+    spot_workers = {
       min_size       = 1
       max_size       = 5
       desired_size   = 2
-      instance_types = ["t3.medium", "t3.large"]
-      capacity_type  = "SPOT"   # ~70% cheaper than On-Demand
+      instance_types = ["t3.medium", "t3.large"] # Multiple types = better Spot availability
+      capacity_type  = "SPOT"
+
+      # Node labels for workload placement (e.g., use node selectors to avoid
+      # scheduling latency-sensitive workloads on Spot nodes)
+      labels = {
+        "node.kubernetes.io/capacity-type" = "spot"
+        "project"                          = "microservices-platform"
+      }
     }
   }
 
-  # Enable IRSA - pods get AWS permissions via IAM roles, no static keys
-  # When IRSA is enabled EKS creates an OIDC Identity Provider.
-  # Every Pod gets a signed identity token.
-  # AWS verifies this token. If it trusts the token it issued temporary creds.
+  # IRSA (IAM Roles for Service Accounts) — pods get AWS permissions via
+  # projected service account tokens, not static IAM keys on the node.
+  # When enabled, EKS creates an OIDC Identity Provider automatically.
+  # Each pod presents a signed token → AWS STS verifies → issues temp credentials.
   enable_irsa = true
 }
 
-
-# 1 Elastic Kubernetes Service (EKS) Cluster (named ai-microservices-platform running version 1.36)
-# 1 Managed Node Group (named spot_workers, using SPOT instances with a desired capacity of 2 nodes, scaling between 1 to 5)
-# 1 OIDC Identity Provider (created automatically because enable_irsa = true is set, allowing pods to assume IAM roles).
+# What this creates:
+# - 1 EKS Cluster (ai-microservices-platform, v1.36)
+# - 1 Managed Spot Node Group (2 nodes desired, scales 1-5, t3.medium/large)
+# - 1 OIDC Identity Provider (enables IRSA for pod-level AWS auth)
