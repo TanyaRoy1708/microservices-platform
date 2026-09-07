@@ -125,7 +125,37 @@ These are real problems I debugged and solved during this project:
 
 ---
 
-## 🔮 Future Improvements
+## 📡 Observability — What's Now Implemented
 
-- **Observability Stack**: Deploy Prometheus & Grafana via Helm, with structured JSON logging via FluentBit to CloudWatch.
-- **Security Hardening**: Implement mTLS (Istio or Linkerd) for pod-to-pod communication; move the EC2 LLM behind a private VPC endpoint.
+Every service exposes structured JSON logs and Prometheus metrics:
+
+```bash
+# All logs are machine-parseable JSON — query in CloudWatch Logs Insights:
+# fields @timestamp, service, event, duration_ms | filter status_code >= 500
+
+# Prometheus metrics example (order-service):
+# order_cache_hits_total 142
+# order_cache_misses_total 23
+# http_request_duration_seconds_bucket{le="0.1"} 189
+
+# Distributed tracing: X-Request-ID flows through all services
+curl -H "X-Request-ID: my-trace-123" http://localhost:8000/users
+# → All 3 services (gateway + user) log the same request_id
+```
+
+---
+
+## 🔮 What I Would Do Differently at Scale
+
+> *This section demonstrates the trade-offs of current choices and when to change them.*
+
+| Current Approach | Limitation at Scale | Production-Grade Alternative |
+|:---|:---|:---|
+| `psycopg2.SimpleConnectionPool` | Pool is per-pod (max 20 conns × N pods = N×20 RDS connections) | **PgBouncer** as a sidecar or standalone: single connection multiplexer for 100+ pods hitting RDS |
+| Synchronous HTTP between services | Order → User lookup adds latency; tight coupling means failures cascade | **AWS MSK (Kafka)**: async order events; services are decoupled; Order service emits events, User service consumes them |
+| Redis TTL-based cache invalidation | 60s stale data window; manual key management | **Event-driven invalidation**: on order update, publish to Redis pub/sub → all order-service pods flush the affected cache key |
+| Single Helm chart for all services | All services deploy together; one broken service blocks the entire release | **Per-service Helm charts**: independent deploy cadences; different teams can own different charts |
+| `kubectl create secret` in CI | Secrets visible in CI logs as `--from-literal`; no rotation mechanism | **AWS Secrets Manager + External Secrets Operator**: secrets live in AWS, synced into Kubernetes automatically; rotation triggers pod restarts |
+| Ollama on plain EC2 | No health monitoring; EC2 failure = AI service down with no failover | **Private endpoint + health monitoring**: Route 53 health check → CloudWatch alarm; or deploy to EKS with a GPU node group |
+| No service mesh | No mTLS between pods; no circuit breaking; no traffic shifting for canary deploys | **Istio (or Linkerd)**: mTLS everywhere; circuit breaker for Ollama timeouts; weighted routing for canary releases |
+| Single NAT Gateway | Single point of failure for all private subnet egress | **Per-AZ NAT Gateway**: ~$32/month more, eliminates cross-AZ NAT traffic cost + removes single PoF |
