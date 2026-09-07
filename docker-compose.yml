@@ -1,5 +1,6 @@
 services:
-  # Infrastructure
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+
   postgres:
     image: postgres:15-alpine
     environment:
@@ -14,6 +15,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks: [backend]
 
   redis:
@@ -22,26 +24,33 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
+      timeout: 5s
+      retries: 5
     networks: [backend]
 
-  # AI Runtime - Ollama local LLM
+  # ─── AI Runtime ──────────────────────────────────────────────────────────────
+  # Ollama runs the local Llama 3.2 model. In production this runs on a
+  # dedicated EC2 t3.large instance (not in the EKS cluster) to avoid scheduling
+  # GPU-class workloads on spot nodes. For local dev it runs in Docker.
+
   ollama:
     image: ollama/ollama:0.3.14
     volumes:
-      - ollama_models:/root/.ollama   # persist downloaded models
-    # Exposing the port so the EKS cluster can reach it!
-    # Make sure your EC2 Security Group restricts port 11434 to only your EKS cluster!
+      - ollama_models:/root/.ollama   # Persist downloaded model weights across restarts
     ports:
       - "0.0.0.0:11434:11434"
+      # In production: EC2 Security Group restricts this port to EKS pod CIDR only.
+      # This port is exposed here so the EKS cluster can call the local Ollama during dev.
     networks: [backend, ai]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s   # Ollama takes time to start
+      start_period: 60s   # Ollama takes 30-60s to fully initialize on first start
 
-  # Pull the model on first start (runs once, then exits)
+  # One-shot init container: pulls the model on first run, then exits.
+  # Uses restart: "no" so it doesn't respawn after pulling successfully.
   ollama-model-pull:
     image: ollama/ollama:0.3.14
     command: pull ${OLLAMA_MODEL:-llama3.2:1b}
@@ -53,11 +62,13 @@ services:
     networks: [backend, ai]
     restart: "no"
 
-  # Application Services
+  # ─── Application Services ────────────────────────────────────────────────────
+
   user-service:
     build: ./user-service
     environment:
       DB_HOST: postgres
+      DB_PORT: "5432"
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -70,12 +81,14 @@ services:
       interval: 15s
       timeout: 6s
       retries: 3
+      start_period: 15s
 
   order-service:
     build: ./order-service
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       DB_HOST: postgres
+      DB_PORT: "5432"
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -83,10 +96,15 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy   # Fixed: was service_started — Redis must be accepting connections
     networks: [backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "--silent", "--max-time", "5", "http://localhost:5002/health"]
+      interval: 15s
+      timeout: 6s
+      retries: 3
+      start_period: 15s
 
-  # AI Service
   ai-service:
     build: ./ai-service
     environment:
@@ -98,9 +116,16 @@ services:
       ollama:
         condition: service_healthy
       user-service:
+        condition: service_healthy   # AI service calls user-service during cross-service lookups
+      order-service:
         condition: service_healthy
-
     networks: [backend, ai]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "--silent", "--max-time", "5", "http://localhost:5003/health"]
+      interval: 20s
+      timeout: 8s
+      retries: 3
+      start_period: 30s
 
   api-gateway:
     build: ./api-gateway
@@ -114,16 +139,16 @@ services:
       user-service:
         condition: service_healthy
       order-service:
-        condition: service_started
+        condition: service_healthy
       ai-service:
-        condition: service_started
+        condition: service_healthy   # Fixed: was service_started — prevents gateway starting before AI is ready
     networks: [backend, frontend]
 
 networks:
   backend:
   frontend:
-  ai:    # Isolated network for AI services
+  ai:     # Isolated network for AI model traffic (Ollama ↔ ai-service only)
 
 volumes:
   postgres_data:
-  ollama_models:   # Persists model weights across container restarts
+  ollama_models:  # Persists Llama model weights across container restarts (~700MB)
