@@ -65,7 +65,7 @@ services:
   # ─── Application Services ────────────────────────────────────────────────────
 
   user-service:
-    build: ./user-service
+    build: ../services/user-service
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -84,7 +84,7 @@ services:
       start_period: 15s
 
   order-service:
-    build: ./order-service
+    build: ../services/order-service
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       DB_HOST: postgres
@@ -106,7 +106,7 @@ services:
       start_period: 15s
 
   ai-service:
-    build: ./ai-service
+    build: ../services/ai-service
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
@@ -128,7 +128,7 @@ services:
       start_period: 30s
 
   api-gateway:
-    build: ./api-gateway
+    build: ../services/api-gateway
     ports:
       - "8000:8000"
     environment:

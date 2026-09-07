@@ -34,11 +34,11 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: ${{ matrix.service }}/requirements.txt
+          cache-dependency-path: services/${{ matrix.service }}/requirements.txt
 
       - name: Install dependencies and run tests
         run: |
-          pip install -r ${{ matrix.service }}/requirements.txt pytest httpx pytest-asyncio
+          pip install -r services/${{ matrix.service }}/requirements.txt pytest httpx pytest-asyncio
           pytest tests/ -v --tb=short -q
 
       - name: Configure AWS credentials via OIDC
@@ -66,7 +66,7 @@ jobs:
         # The SHA tag ensures each commit has a unique, immutable, auditable image.
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }}/
+          context: ./services/${{ matrix.service }}/
           push: true
           tags: |
             ${{ secrets.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
@@ -137,9 +137,9 @@ jobs:
         # --wait: block until all pods are Running/Ready before returning success.
         # This means a failed deploy never silently leaves the cluster in a broken state.
         run: |
-          mkdir -p helm/ai-platform/files
-          cp init.sql helm/ai-platform/files/init.sql
-          helm upgrade --install ai-platform ./helm/ai-platform/ \
+          mkdir -p infra/helm/ai-platform/files
+          cp local-dev/init.sql infra/helm/ai-platform/files/init.sql
+          helm upgrade --install ai-platform ./infra/helm/ai-platform/ \
             --namespace production \
             --create-namespace \
             --set global.imageTag=${{ github.sha }} \

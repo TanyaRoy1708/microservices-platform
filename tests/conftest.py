@@ -12,7 +12,7 @@ import pytest
 # Add all service directories to sys.path so tests can import their modules directly.
 # This avoids needing an __init__.py or package install for testing.
 for service_dir in ["api-gateway", "user-service", "order-service", "ai-service"]:
-    service_path = os.path.join(os.path.dirname(__file__), "..", service_dir)
+    service_path = os.path.join(os.path.dirname(__file__), "..", "services", service_dir)
     abs_path = os.path.abspath(service_path)
     if abs_path not in sys.path:
         sys.path.insert(0, abs_path)

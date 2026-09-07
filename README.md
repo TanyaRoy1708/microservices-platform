@@ -33,7 +33,7 @@
 | **Cloud Cost Optimization** | EKS Spot Instance node group (~70% cheaper); `single_nat_gateway` for dev; HPA scales down during off-peak; explicit cost tags on all AWS resources |
 | **AI Integration** | Natural language → structured intent → microservice orchestration, powered by Llama 3.2 (1B) via Ollama; prompt injection protection via allowlist validator |
 
-> 📋 **[Technical Deep Dive — screenshots, pipeline breakdown, engineering challenges & trade-offs →](./TECHNICAL_DEEP_DIVE.md)**
+> 📋 **[Technical Deep Dive — screenshots, pipeline breakdown, engineering challenges & trade-offs →](./docs/TECHNICAL_DEEP_DIVE.md)**
 
 ---
 
@@ -178,28 +178,28 @@ Every service exposes:
 ```
 microservices-platform/
 ├── .github/workflows/deploy.yaml   # CI/CD: parallel matrix build + Trivy gate + Helm deploy
-├── api-gateway/                    # FastAPI entry point — routes + request ID propagation
-├── ai-service/                     # NL → intent extraction → service orchestration
-│   ├── prompts.py                  # LLM prompt engineering (separated for testability)
-│   └── validator.py                # Intent allowlist (security gate against prompt injection)
-├── user-service/                   # User CRUD — PostgreSQL + connection pooling
-├── order-service/                  # Order queries — PostgreSQL + Redis cache
-├── terraform/                      # Flat IaC: vpc.tf, eks.tf, rds.tf, ecr.tf
-├── helm/ai-platform/               # Unified Helm chart
-│   └── templates/
-│       ├── */deployment.yaml       # Deployment manifests (liveness + readiness probes)
-│       ├── */hpa.yaml              # HPA per service (CPU+memory, scale behavior policies)
-│       ├── */pdb.yaml              # PodDisruptionBudget per service (Spot eviction protection)
-│       ├── redis/                  # In-cluster Redis deployment
-│       ├── ingress.yaml            # AWS ALB Ingress
-│       └── db-init-job.yaml        # Helm post-install hook: idempotent DB migration
-├── scripts/
-│   ├── setup.sh                    # Local one-command bootstrap
-│   └── eks-setup.sh                # ALB controller IAM + Helm install
-├── tests/
-│   ├── conftest.py                 # Shared pytest fixtures (mocked DB + Redis)
-│   └── test_services.py            # Unit tests: all 4 services, 20+ test cases
-└── TECHNICAL_DEEP_DIVE.md          # Live screenshots, pipeline walk-through, trade-offs
+├── services/                       # Application source code
+│   ├── api-gateway/                # FastAPI entry point — routes + request ID propagation
+│   ├── ai-service/                 # NL → intent extraction → service orchestration
+│   │   ├── prompts.py              # LLM prompt engineering (separated for testability)
+│   │   └── validator.py            # Intent allowlist (security gate against prompt injection)
+│   ├── user-service/               # User CRUD — PostgreSQL + connection pooling
+│   └── order-service/              # Order queries — PostgreSQL + Redis cache
+├── infra/                          # Infrastructure definitions
+│   ├── terraform/                  # Flat IaC: vpc.tf, eks.tf, rds.tf, ecr.tf
+│   └── helm/ai-platform/           # Unified Helm chart
+│       └── templates/
+│           ├── */deployment.yaml   # Deployment manifests (liveness + readiness probes)
+│           ├── */hpa.yaml          # HPA per service (CPU+memory, scale behavior policies)
+│           ├── */pdb.yaml          # PodDisruptionBudget per service (Spot eviction protection)
+│           ├── redis/              # In-cluster Redis deployment
+│           ├── ingress.yaml        # AWS ALB Ingress
+│           └── db-init-job.yaml    # Helm post-install hook: idempotent DB migration
+├── local-dev/                      # Local development assets (docker-compose, etc)
+├── scripts/                        # Automation scripts
+├── tests/                          # Unit & integration tests
+└── docs/                           # Documentation
+    └── TECHNICAL_DEEP_DIVE.md      # Live screenshots, pipeline walk-through, trade-offs
 ```
 
 ---
