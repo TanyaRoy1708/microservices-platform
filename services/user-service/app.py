@@ -37,10 +37,6 @@ logger.setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").handlers = []  # Avoid duplicate access logs
 
 
-# ─── Prometheus Metrics ───────────────────────────────────────────────────────
-from prometheus_fastapi_instrumentator import Instrumentator
-
-
 # ─── Application Lifecycle ────────────────────────────────────────────────────
 db_pool = None
 
@@ -71,10 +67,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="User Service", version="2.0", lifespan=lifespan)
-
-# Mount Prometheus metrics endpoint at /metrics
-# Scraped by Prometheus / kube-prometheus-stack in production
-Instrumentator().instrument(app).expose(app)
 
 
 # ─── DB Connection Context Manager ───────────────────────────────────────────

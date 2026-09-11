@@ -21,10 +21,22 @@ Coverage:
 """
 import json
 import sys
+import os
 import importlib
+import importlib.util
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from fastapi.testclient import TestClient
+
+
+def load_service_app(service_name: str):
+    service_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "services", service_name))
+    app_path = os.path.join(service_dir, "app.py")
+    spec = importlib.util.spec_from_file_location(f"{service_name.replace('-', '_')}_app", app_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 # ─── API GATEWAY ──────────────────────────────────────────────────────────────
@@ -33,8 +45,7 @@ class TestApiGateway:
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        import app as gw_app
-        importlib.reload(gw_app)
+        gw_app = load_service_app("api-gateway")
         self.client = TestClient(gw_app.app, raise_server_exceptions=False)
 
     def test_health_returns_200(self):
@@ -95,8 +106,7 @@ class TestUserService:
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        import app as user_app
-        importlib.reload(user_app)
+        user_app = load_service_app("user-service")
 
         self.pool = MagicMock()
         self.conn = MagicMock()
@@ -185,8 +195,7 @@ class TestOrderService:
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        import app as order_app
-        importlib.reload(order_app)
+        order_app = load_service_app("order-service")
 
         self.pool = MagicMock()
         self.conn = MagicMock()

@@ -11,10 +11,9 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/features/actions)
 [![Helm](https://img.shields.io/badge/Helm-v3-0F1689?style=for-the-badge&logo=helm&logoColor=white)](https://helm.sh/)
-[![Prometheus](https://img.shields.io/badge/Metrics-Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Trivy](https://img.shields.io/badge/Security-Trivy-1904DA?style=for-the-badge&logo=aquasecurity&logoColor=white)](https://trivy.dev/)
 
-> 4 Python microservices containerized with Docker, orchestrated on AWS EKS with Terraform IaC, deployed via a fully automated GitHub Actions CI/CD pipeline — with container security scanning, structured observability, HPA autoscaling, and an AI-powered natural language query engine.
+> 4 Python microservices containerized with Docker, orchestrated on AWS EKS with Terraform IaC, deployed via a fully automated GitHub Actions CI/CD pipeline — with container security scanning, HPA autoscaling, and an AI-powered natural language query engine.
 
 </div>
 
@@ -28,7 +27,6 @@
 | **CI/CD Automation** | Parallel matrix pipeline: code push → pytest → Docker BuildKit cache → ECR push → Trivy CVE gate → `helm upgrade` on EKS |
 | **Security Engineering** | Keyless AWS auth via OIDC federation; Trivy scan **gates** deploys on critical CVEs (exit-code 1); non-root containers; no static IAM keys anywhere |
 | **Kubernetes Orchestration** | HPA (CPU+memory, with scale behavior policies), PodDisruptionBudgets, Helm packaging, AWS ALB Ingress, automated DB migrations via Helm `post-install` hooks |
-| **Observability** | Structured JSON logging (CloudWatch-parseable), Prometheus `/metrics` on all services, custom cache hit/miss counters, LLM latency histogram, X-Request-ID distributed tracing |
 | **Resilience** | PostgreSQL connection pooling (`psycopg2.pool`); Redis caching with 60s TTL; PDB prevents Spot eviction outages; `--atomic` Helm deploys auto-rollback on failure |
 | **Cloud Cost Optimization** | EKS Spot Instance node group (~70% cheaper); `single_nat_gateway` for dev; HPA scales down during off-peak; explicit cost tags on all AWS resources |
 | **AI Integration** | Natural language → structured intent → microservice orchestration, powered by Llama 3.2 (1B) via Ollama; prompt injection protection via allowlist validator |
@@ -45,7 +43,7 @@ Internet ──HTTPS──▶ AWS ALB Ingress
                     ┌─────┴──────────────────────────────────────────────┐
                     │           AWS EKS Cluster (production ns)          │
                     │                                                     │
-                    │   API Gateway (:8000)  ── /metrics ── Prometheus   │
+                    │   API Gateway (:8000)                               │
                     │     ├──▶ User Service  (:5001) ──▶ RDS Postgres    │
                     │     ├──▶ Order Service (:5002) ──▶ RDS + Redis     │
                     │     └──▶ AI Service    (:5003) ──────────────────┐ │
@@ -69,7 +67,6 @@ Local Dev: All services + PostgreSQL + Redis + Llama 3.2 run via
 | **Containers** | Docker · Docker Compose | Multi-stage builds; non-root user; BuildKit layer caching in CI |
 | **Orchestration** | AWS EKS `v1.36` · Helm `v3` · ALB Ingress | HPA + PDB for resilience; `--atomic` for safe deploys |
 | **CI/CD** | GitHub Actions — parallel matrix + Trivy gate | OIDC keyless auth; build cache; CVE gate on critical/high |
-| **Observability** | Structured JSON logging · Prometheus `/metrics` | CloudWatch-parseable logs; cache hit/miss + LLM latency metrics |
 | **Backend** | Python `3.11` · FastAPI `0.111` | `lifespan` pattern (modern); async throughout |
 | **Databases** | AWS RDS PostgreSQL `15` · Redis `7` | Connection pooling prevents exhaustion; 60s Redis TTL for orders |
 | **AI Engine** | Ollama · `llama3.2:1b` · Intent extraction | Bounded operation set → direct extraction beats RAG for this scope |
@@ -115,10 +112,7 @@ curl -s -X POST http://localhost:8000/ai/query \
   -H 'Content-Type: application/json' \
   -d '{"query": "Show me all orders over 50000"}'
 
-# 5. Check Prometheus metrics (structured observability)
-curl http://localhost:8000/metrics | head -30
-
-# 6. Open interactive API docs: http://localhost:8000/docs
+# 5. Open interactive API docs: http://localhost:8000/docs
 ```
 
 ---
@@ -152,24 +146,6 @@ helm uninstall ai-platform -n production
 cd terraform/
 terraform destroy
 ```
-
----
-
-## 👁️ Observability
-
-Every service exposes:
-- **`/health`** — Deep dependency check (DB ping, Redis ping, Ollama reachability). Returns `200 healthy` or `503 degraded` — used by Kubernetes readiness probes.
-- **`/metrics`** — Prometheus format. Scraped by `kube-prometheus-stack` in production.
-- **Structured JSON logs** — Every log line is a JSON object with `service`, `request_id`, `duration_ms`, `status_code`. Queryable in CloudWatch Logs Insights.
-
-**Key metrics exposed:**
-| Metric | Service | What It Tells You |
-|---|---|---|
-| `http_request_duration_seconds` | All | p50/p95/p99 latency per endpoint |
-| `order_cache_hits_total` | order-service | Redis effectiveness (target: >70% hit rate) |
-| `order_cache_misses_total` | order-service | Cache miss rate → DB load indicator |
-| `llm_inference_duration_seconds` | ai-service | LLM latency distribution (p50, p95, p99) |
-| `llm_requests_total` | ai-service | Success/error/parse-error breakdown |
 
 ---
 

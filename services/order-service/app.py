@@ -14,15 +14,11 @@ Key design decisions:
     instead of TTL for stronger consistency guarantees.
   - Per-query cache keys: each unique filter combination gets its own key.
     Avoids serving stale filtered results when only some orders change.
-  - Custom Prometheus counters: tracks cache hit/miss ratio — the primary
-    metric for evaluating whether Redis is actually helping. Target: >70% hit rate.
   - lifespan + asynccontextmanager: modern FastAPI lifecycle management.
 """
 from contextlib import asynccontextmanager, closing
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter
 import redis, psycopg2, os, json, time, uuid, logging
 from psycopg2 import pool
 from pythonjsonlogger import jsonlogger
@@ -38,11 +34,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").handlers = []
 
-# ─── Custom Prometheus Metrics ────────────────────────────────────────────────
-# These counters measure cache effectiveness — the primary KPI for the Redis layer.
-# In Grafana: rate(cache_hits_total[5m]) / rate(cache_requests_total[5m]) = hit ratio
-cache_hits = Counter("order_cache_hits_total", "Redis cache hits for order queries")
-cache_misses = Counter("order_cache_misses_total", "Redis cache misses for order queries")
+
 
 # ─── Redis Client ─────────────────────────────────────────────────────────────
 # redis-py maintains its own internal connection pool (default: 50 connections).
@@ -78,7 +70,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Order Service", version="2.0", lifespan=lifespan)
-Instrumentator().instrument(app).expose(app)
 
 
 @asynccontextmanager
@@ -169,11 +160,8 @@ async def get_orders(
 
     cached = redis_client.get(cache_key)
     if cached:
-        cache_hits.inc()
         logger.info("orders.cache.hit", extra={"cache_key": cache_key})
         return json.loads(cached)
-
-    cache_misses.inc()
 
     try:
         async with get_db_conn() as conn:

@@ -125,26 +125,6 @@ These are real problems I debugged and solved during this project:
 
 ---
 
-## 📡 Observability — What's Now Implemented
-
-Every service exposes structured JSON logs and Prometheus metrics:
-
-```bash
-# All logs are machine-parseable JSON — query in CloudWatch Logs Insights:
-# fields @timestamp, service, event, duration_ms | filter status_code >= 500
-
-# Prometheus metrics example (order-service):
-# order_cache_hits_total 142
-# order_cache_misses_total 23
-# http_request_duration_seconds_bucket{le="0.1"} 189
-
-# Distributed tracing: X-Request-ID flows through all services
-curl -H "X-Request-ID: my-trace-123" http://localhost:8000/users
-# → All 3 services (gateway + user) log the same request_id
-```
-
----
-
 ## 🔮 What I Would Do Differently at Scale
 
 > *This section demonstrates the trade-offs of current choices and when to change them.*

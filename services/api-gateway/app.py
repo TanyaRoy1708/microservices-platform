@@ -16,12 +16,11 @@ Key design decisions:
   - X-Request-ID propagation: request IDs generated here flow through all
     downstream services, enabling end-to-end log correlation.
   - Structured JSON logging: all proxy calls logged with upstream URL,
-    status, and duration for observability.
+    status, and duration.
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
-from prometheus_fastapi_instrumentator import Instrumentator
 import httpx, os, logging, time, uuid
 from pythonjsonlogger import jsonlogger
 
@@ -57,7 +56,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="API Gateway", version="2.0", lifespan=lifespan)
-Instrumentator().instrument(app).expose(app)
 
 
 # ─── Request ID Middleware ────────────────────────────────────────────────────

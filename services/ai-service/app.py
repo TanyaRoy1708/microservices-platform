@@ -27,8 +27,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter, Histogram
 import httpx, os, json, logging, time
 from pythonjsonlogger import jsonlogger
 from prompts import INTENT_EXTRACTION_PROMPT
@@ -44,13 +42,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").handlers = []
 
-# ─── Custom Prometheus Metrics ────────────────────────────────────────────────
-llm_requests_total = Counter("llm_requests_total", "Total LLM inference calls", ["model", "status"])
-llm_duration = Histogram(
-    "llm_inference_duration_seconds",
-    "LLM inference latency distribution",
-    buckets=[1, 5, 10, 20, 30, 45, 60],
-)
+
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 OLLAMA_URL   = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
@@ -69,7 +61,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Query Service", version="2.0", lifespan=lifespan)
-Instrumentator().instrument(app).expose(app)
 
 
 # ─── Request/Response Models ──────────────────────────────────────────────────
@@ -134,9 +125,6 @@ async def call_llm(prompt: str, user_query: str) -> dict:
         r = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
         r.raise_for_status()
 
-    duration = time.time() - start
-    llm_duration.observe(duration)
-
     raw = r.json()["message"]["content"].strip()
 
     # Strip markdown code fences if present (some models add ```json ... ```)
@@ -166,14 +154,11 @@ async def ai_query(request: QueryRequest):
     # ── Step 1: Extract Intent via LLM ────────────────────────────────────────
     try:
         intent = await call_llm(INTENT_EXTRACTION_PROMPT, request.query)
-        llm_requests_total.labels(model=OLLAMA_MODEL, status="success").inc()
         logger.info("ai.intent.extracted", extra={"intent": intent})
     except json.JSONDecodeError as e:
-        llm_requests_total.labels(model=OLLAMA_MODEL, status="parse_error").inc()
         logger.error("ai.intent.parse_error", extra={"error": str(e)})
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON")
     except Exception as e:
-        llm_requests_total.labels(model=OLLAMA_MODEL, status="error").inc()
         logger.error("ai.llm.error", extra={"error": str(e)})
         raise HTTPException(status_code=500, detail=f"LLM inference failed: {e}")
 
