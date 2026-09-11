@@ -82,7 +82,7 @@ Local Dev: All services + PostgreSQL + Redis + Llama 3.2 run via
 
 **EKS Spot instances** — ~70% cost reduction vs. On-Demand for the same t3.medium/large. Trade-off: 2-minute eviction notice. Mitigated by: multiple instance types (better availability), PodDisruptionBudgets (minimum pods guaranteed during drains), and HPA (fast rescheduling on new nodes).
 
-**Redis TTL=60s (not cache invalidation)** — For a read-mostly dataset (orders list), 60s staleness is acceptable and dramatically simpler than maintaining a cache invalidation bus. At higher write frequency or stricter consistency requirements, switch to explicit invalidation on order status changes.
+**Redis TTL=60s (not cache invalidation)** — For a read-mostly dataset (orders list), 60s staleness is acceptable and simpler than maintaining a cache invalidation bus. At higher write frequency or stricter consistency requirements, switch to explicit invalidation on order status changes.
 
 **`psycopg2.SimpleConnectionPool` (not `ThreadedConnectionPool`)** — FastAPI's thread pool uses synchronous DB calls here, not async. `SimpleConnectionPool` is correct and slightly faster; `ThreadedConnectionPool` adds locking overhead only needed for true multi-threaded access patterns.
 
